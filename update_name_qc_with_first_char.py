@@ -2,8 +2,10 @@ import re
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd 
+from tqdm import tqdm
 
 # Load the SentenceTransformer model
+tqdm.pandas()
 model = SentenceTransformer('all-MiniLM-L6-v2')  # You can use your custom model if necessary
 #df = pd.read_excel(r"C:\Users\Desk0012\Downloads\output_file5456.xlsx",sheet_name='Sheet3')
 
@@ -301,8 +303,8 @@ def compare_names(name1, name2, last_name_list):
 df = pd.read_excel(r"C:\Users\Desk0012\Downloads\Alekm_Final_Merging (2).xlsx")
 
 # Step 6: Apply the comparison function to each row in the DataFrame
-df['name_match'] = df.apply(lambda row: compare_names(str(row['Doctor name']).lower(), str(row['client_name']).lower(), last_name), axis=1)
-df['first_char_match'] = df.apply(lambda row: names_match(str(row['Doctor name']).lower(), str(row['client_name']).lower(),last_name), axis=1)
+df['name_match'] = df.progress_apply(lambda row: compare_names(str(row['Doctor name']).lower(), str(row['client_name']).lower(), last_name), axis=1)
+df['first_char_match'] = df.progress_apply(lambda row: names_match(str(row['Doctor name']).lower(), str(row['client_name']).lower(),last_name), axis=1)
 
 
 
