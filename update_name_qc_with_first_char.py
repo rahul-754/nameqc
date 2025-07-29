@@ -1,8 +1,11 @@
 import re
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import pandas as pd 
+import pandas as pd
 from tqdm import tqdm
+from Levenshtein import distance
+import metaphone
+import itertools
 
 # Load the SentenceTransformer model
 tqdm.pandas()
@@ -11,28 +14,28 @@ model = SentenceTransformer('all-MiniLM-L6-v2')  # You can use your custom model
 
 # List of last names
 last_name = [
-    "Kumar", "Mishra", "Sharma", "Patel", "Yadav", "Chauhan", "Gupta", "Singh", "Reddy", 
-    "Nair", "Naidu", "Mehta", "Iyer", "Rao", "Rajput", "Jha", "Soni", "Bhat", "Pandey", 
-    "Verma", "Desai", "Thakur", "Khatri", "Baniya", "Chand", "Choudhury", "Agarwal", "Maharaj", 
-    "Bhagat", "Sahu", "Kumawat", "Lohar", "Pundir", "Tiwari", "Saini", "Bansal", "Chaudhary", 
-    "Bhatt", "Khandelwal", "Jain", "Mewari", "Patnaik", "Bhardwaj", "Kapoor", "Dhawan", "Khanna", 
-    "Chopra", "Ghosh", "Sen", "Bose", "Das", "Sarkar", "Rathore", "Vora", "Shukla", "Tiwari", 
-    "Trivedi", "Rastogi", "Sridhar", "Vasudev", "Madhav", "Nayak", "Pawar", "Bora", "Kaur", 
-    "Singh", "Khan", "Ansari", "Pathan", "Syed", "Malik", "Farooqi", "Bukhari", "Rizvi", "Zafar", 
-    "Kale", "Lokhande", "Hussain", "Shaikh", "Jadhav", "Patil", "Sawant", "Deshmukh", "Babar", 
-    "Shinde", "Salvi", "Padhye", "Bhatnagar", "Vaidya", "Shah", "Gandhi", "Dewan", "Vishwakarma", 
-    "Uppal", "Rungta", "Awasthi", "Chandran", "Behera", "Bansal", "Khandelwal", "Sarkar", 
-    "Bhargava", "Bajpai", "Chopra", "Rajeev", "Mishra", "Garg", "Patnaik", "Rathi", "Parikh", 
-    "Zaveri", "Jindal", "Tiwari", "Seth", "Dhillon", "Malhotra", "Bhatia", "Garg", "Suri", 
-    "Gandhi", "Agarwal", "Mishra", "Shukla", "Kohli", "Mathur", "Yadav", "Aggarwal", "Chandran", 
-    "Iyer", "Shah", "Dixit", "Sharma", "Vasudev", "Bhargava", "Shastri", "Patel", "Bansal", 
-    "Lodha", "Singhal", "Thapar", "Verma", "Narayan", "Pillai", "Subramanian", "Krishnan", 
-    "Ravichandran", "Nair", "Shenoy", "Menon", "Pillai", "Chandra", "Anand", "Gupta", "Bhaskar", 
-    "Desai", "Tiwari", "Bansal", "Hegde", "Prakash", "Kulkarni", "Rai", "Singh", "Mishra", 
-    "Reddy", "Rajendran", "Kannan", "Pillai", "Kumar", "Chakraborty", "Sen", "Lal", "Pandey", 
-    "Ravindran", "Venu", "Satyanarayana", "Manoharan", "Subramanian", "Ayyar", "Raghavan", 
-    "Sreenivasan", "Krishna", "Venkatesh", "Ranganathan", "Vijayan", "Krishnan", "Lakshmanan", 
-    "Baskar", "Perumal", "Rajagopal", "Rajasekaran", "Kailasam", "Azhagiri", "Kumarasamy", 
+    "Kumar", "Mishra", "Sharma", "Patel", "Yadav", "Chauhan", "Gupta", "Singh", "Reddy",
+    "Nair", "Naidu", "Mehta", "Iyer", "Rao", "Rajput", "Jha", "Soni", "Bhat", "Pandey",
+    "Verma", "Desai", "Thakur", "Khatri", "Baniya", "Chand", "Choudhury", "Agarwal", "Maharaj",
+    "Bhagat", "Sahu", "Kumawat", "Lohar", "Pundir", "Tiwari", "Saini", "Bansal", "Chaudhary",
+    "Bhatt", "Khandelwal", "Jain", "Mewari", "Patnaik", "Bhardwaj", "Kapoor", "Dhawan", "Khanna",
+    "Chopra", "Ghosh", "Sen", "Bose", "Das", "Sarkar", "Rathore", "Vora", "Shukla", "Tiwari",
+    "Trivedi", "Rastogi", "Sridhar", "Vasudev", "Madhav", "Nayak", "Pawar", "Bora", "Kaur",
+    "Singh", "Khan", "Ansari", "Pathan", "Syed", "Malik", "Farooqi", "Bukhari", "Rizvi", "Zafar",
+    "Kale", "Lokhande", "Hussain", "Shaikh", "Jadhav", "Patil", "Sawant", "Deshmukh", "Babar",
+    "Shinde", "Salvi", "Padhye", "Bhatnagar", "Vaidya", "Shah", "Gandhi", "Dewan", "Vishwakarma",
+    "Uppal", "Rungta", "Awasthi", "Chandran", "Behera", "Bansal", "Khandelwal", "Sarkar",
+    "Bhargava", "Bajpai", "Chopra", "Rajeev", "Mishra", "Garg", "Patnaik", "Rathi", "Parikh",
+    "Zaveri", "Jindal", "Tiwari", "Seth", "Dhillon", "Malhotra", "Bhatia", "Garg", "Suri",
+    "Gandhi", "Agarwal", "Mishra", "Shukla", "Kohli", "Mathur", "Yadav", "Aggarwal", "Chandran",
+    "Iyer", "Shah", "Dixit", "Sharma", "Vasudev", "Bhargava", "Shastri", "Patel", "Bansal",
+    "Lodha", "Singhal", "Thapar", "Verma", "Narayan", "Pillai", "Subramanian", "Krishnan",
+    "Ravichandran", "Nair", "Shenoy", "Menon", "Pillai", "Chandra", "Anand", "Gupta", "Bhaskar",
+    "Desai", "Tiwari", "Bansal", "Hegde", "Prakash", "Kulkarni", "Rai", "Singh", "Mishra",
+    "Reddy", "Rajendran", "Kannan", "Pillai", "Kumar", "Chakraborty", "Sen", "Lal", "Pandey",
+    "Ravindran", "Venu", "Satyanarayana", "Manoharan", "Subramanian", "Ayyar", "Raghavan",
+    "Sreenivasan", "Krishna", "Venkatesh", "Ranganathan", "Vijayan", "Krishnan", "Lakshmanan",
+    "Baskar", "Perumal", "Rajagopal", "Rajasekaran", "Kailasam", "Azhagiri", "Kumarasamy",
     "Shanmugam", "Kandasamy", "Srinivasan", "Murugan", "Sivakumar", "Ravichandran", "Ravindra","Ghoshal","gopal",
     'Acharya', 'Adhaulia', 'Adhya', 'Aenugu', 'Afreen', 'Afsar', 'Aftab', 'Agarawal', 'Agarwal', 'Agate',
     'Aggarwal', 'Aggrawal', 'Agrahari', 'Agrawal', 'Ahamad', 'Ahluwalia', 'Ahmad', 'Ahmed', 'Ahuja', 'Aishwary',
@@ -181,7 +184,7 @@ def names_match(name1, name2, last_name_list):
 def remove_title(name):
     # Remove "Dr.", "dr", "DR", etc. from the beginning
     name = re.sub(r"^dr\.?\s*", "", name, flags=re.IGNORECASE)
-    
+   
     # Replace special characters with a space
     name = re.sub(r"[^\w\s]", " ", name)
 
@@ -197,7 +200,7 @@ def remove_title(name):
         if key not in seen:
             seen.add(key)
             result.append(word)
-    
+   
     name = " ".join(result)
     return name.strip()
 
@@ -205,14 +208,14 @@ def remove_title(name):
 def split_names(name, last_names):
     name = remove_title(name)  # Remove any title from the name
     name_parts = name.split()  # Split the name into parts
-    
+   
     # Check if any last name from the list is present in the name
     last_name_found = None
     for part in name_parts:
         if part in last_names:
             last_name_found = part
             break
-    
+   
     # If a last name is found, split the name into first and last names
     if last_name_found:
         first_name = " ".join(name_parts[:-1])  # Everything except the last part is the first name
@@ -220,7 +223,7 @@ def split_names(name, last_names):
     else:
         first_name = name  # No split, the whole name is the first name
         last_name = ""  # No last name present
-    
+   
     return first_name.lower(), last_name.lower()
 
 # Step 3: Compare first names
@@ -274,7 +277,7 @@ def check_last_name_similarity(last_name1, last_name2):
 # Step 5: Compare first and last names
 def compare_names(name1, name2, last_name_list):
     # Check if the initials of both names match
-    
+   
 
     # Split the names into first and last names
     first_name1, last_name1 = split_names(name1, last_name_list)
@@ -292,23 +295,235 @@ def compare_names(name1, name2, last_name_list):
         # If one or both names don't have last names, only return the first name similarity
         return first_name_similarity['result']
 
-    
-    
+   
+def soundex(word):
+    word = word.upper()
+    mappings = {'BFPV': '1', 'CGJKQSXZ': '2', 'DT': '3', 'L': '4', 'MN': '5', 'R': '6'}
+    soundex_dict = {char: digit for group, digit in mappings.items() for char in group}
+
+    if not word:
+        return ""
+
+    result = [word[0]]
+    prev_digit = ''
+
+    for char in word[1:]:
+        digit = soundex_dict.get(char, '')
+        if digit != prev_digit:
+            result.append(digit)
+        if digit:
+            prev_digit = digit
+
+    return ''.join(result)
+
+def soundex_custom_match(name1, name2):
+    w1 = remove_title(str(name1)).split()
+    w2 = remove_title(str(name2)).split()
+
+    # shorter vs. longer
+    if len(w1) <= len(w2):
+        shorter, longer = w1, w2
+    else:
+        shorter, longer = w2, w1
+
+    used = [False] * len(longer)
+
+    for word in shorter:
+        matched = False
+
+        # 1-char ↔ first-letter match
+        if len(word) == 1:
+            for i, lw in enumerate(longer):
+                if not used[i] and lw and lw[0].lower() == word.lower():
+                    used[i] = True
+                    matched = True
+                    break
+
+        else:
+            sx = soundex(word)
+            for i, lw in enumerate(longer):
+                if used[i]:
+                    continue
+
+                # if longer word is single-char, match its initial to this word
+                if len(lw) == 1 and lw.lower() == word[0].lower():
+                    used[i] = True
+                    matched = True
+                    break
+
+                # full Soundex match
+                if len(lw) > 1 and soundex(lw) == sx:
+                    used[i] = True
+                    matched = True
+                    break
+
+        if not matched:
+            return False
+
+    return True
+
+# Apply on DataFrame
+
+def phonetic_equals(full_name1, full_name2):
+    # Clean & split, keep only words longer than one character
+    words1 = [w for w in remove_title(str(full_name1)).split() if len(w) > 1]
+    words2 = [w for w in remove_title(str(full_name2)).split() if len(w) > 1]
+   
+    # Create lists of the phonetic representations for both names
+    phonetic1 = [metaphone.doublemetaphone(w.lower())[0] for w in words1]
+    phonetic2 = [metaphone.doublemetaphone(w.lower())[0] for w in words2]
+   
+    # Print the phonetic sets for debugging
+ 
+   
+    # Compare phonetic representations:
+    # Check if all words in the smaller list have a corresponding match in the larger list (ignoring order)
+    smaller, larger = (phonetic1, phonetic2) if len(phonetic1) <= len(phonetic2) else (phonetic2, phonetic1)
+   
+    # Check if all phonetic codes from the smaller list match in the larger list
+    for p1 in smaller:
+        if p1 not in larger:
+            return False
+   
+    return True
 
 
+def levenshtein_distance_match(name1, name2, threshold=1):
+    # Assume remove_title(name: str) -> str is already defined
 
+    # Basic Levenshtein distance function
+    def levenshtein(s1, s2):
+        len_s1, len_s2 = len(s1), len(s2)
+        dp = [[0] * (len_s2 + 1) for _ in range(len_s1 + 1)]
+        for i in range(len_s1 + 1):
+            dp[i][0] = i
+        for j in range(len_s2 + 1):
+            dp[0][j] = j
+        for i in range(1, len_s1 + 1):
+            for j in range(1, len_s2 + 1):
+                cost = 0 if s1[i - 1] == s2[j - 1] else 1
+                dp[i][j] = min(
+                    dp[i - 1][j] + 1,    # Deletion
+                    dp[i][j - 1] + 1,    # Insertion
+                    dp[i - 1][j - 1] + cost  # Substitution
+                )
+        return dp[len_s1][len_s2]
+
+    # Clean and split names
+    def clean_words(name):
+        name = remove_title(name)
+        words = re.findall(r'\b\w+\b', name.lower())
+        return [word for word in words if len(word) > 1]
+
+    words1 = clean_words(name1)
+    words2 = clean_words(name2)
+
+    # Ensure words1 is the shorter list
+    if len(words1) > len(words2):
+        words1, words2 = words2, words1
+
+    matched = 0
+    used_indices = set()
+
+    for w1 in words1:
+        best_distance = float('inf')
+        best_index = -1
+        for i, w2 in enumerate(words2):
+            if i in used_indices:
+                continue
+            dist = levenshtein(w1, w2)
+            if dist < best_distance:
+                best_distance = dist
+                best_index = i
+        if best_distance <= threshold:
+            matched += 1
+            used_indices.add(best_index)
+
+    return matched == len(words1)
+
+
+def generate_all_combinations(words):
+    merged_set = set()
+    if len(words) >= 2:
+        for r in range(2, len(words)+1):
+            for group in itertools.permutations(words, r):
+                merged_set.add(''.join(group).lower())
+    return merged_set
+
+def enhanced_match(name1, name2):
+    w1 = remove_title(name1).strip().split()
+    w2 = remove_title(name2).strip().split()
+
+    if len(w1) < 2 and len(w2) < 2:
+        return False
+
+    words1 = [w.lower() for w in w1]
+    words2 = [w.lower() for w in w2]
+
+    merged1 = generate_all_combinations(words1)
+    merged2 = generate_all_combinations(words2)
+
+    if any(w in merged2 for w in words1) or any(w in merged1 for w in words2):
+        return True
+    if merged1 & merged2:
+        return True
+    return False
+
+def remove_common_lastnames(name1, name2, last_name_list):
+    name1 = name1.lower()
+    name2 = name2.lower()
+
+    for last in last_name_list:
+        if last in name1 and last in name2:
+            name1 = name1.replace(last, '')
+            name2 = name2.replace(last, '')
+
+    return name1.strip(), name2.strip()
 
 # Load the Excel file
 
-df = pd.read_excel(r"C:\Users\Desk0012\Downloads\Alekm_Final_Merging (2).xlsx")
+df = pd.read_csv(r"D:\Downloads\outputFromOpenAlex2(Sheet1) (1).csv")
+df[['excel_data.Full Name', 'mongo_data.firstName']] = df.apply(
+    lambda row: pd.Series(remove_common_lastnames(
+        remove_title(str(row['Alt_Names'])),
+        remove_title(str(row['Full_Name'])),
+        last_name
+    )),
+    axis=1
+)
 
 # Step 6: Apply the comparison function to each row in the DataFrame
-df['name_match'] = df.progress_apply(lambda row: compare_names(str(row['Doctor name']).lower(), str(row['client_name']).lower(), last_name), axis=1)
-df['first_char_match'] = df.progress_apply(lambda row: names_match(str(row['Doctor name']).lower(), str(row['client_name']).lower(),last_name), axis=1)
+df['name_match'] = df.progress_apply(lambda row: compare_names(str(row['excel_data.Full Name']).lower(), str(row['mongo_data.firstName']).lower(), last_name), axis=1)
+df['first_char_match'] = df.progress_apply(lambda row: names_match(str(row['excel_data.Full Name']).lower(), str(row['mongo_data.firstName']).lower(),last_name), axis=1)
+df['soundex_match'] = df.progress_apply(
+    lambda row: soundex_custom_match(
+        remove_title(str(row['excel_data.Full Name'])),
+        remove_title(str(row['mongo_data.firstName']))
+    ),
+    axis=1
+)
 
+df['phonetic_match'] = df.progress_apply(
+    lambda row: phonetic_equals(
+        remove_title(str(row['excel_data.Full Name'])),
+        remove_title(str(row['mongo_data.firstName']))
+    ),
+    axis=1
+)
+df['levenshtein_match'] = df.progress_apply(
+    lambda row: levenshtein_distance_match(
+        remove_title(str(row['excel_data.Full Name'])),
+        remove_title(str(row['mongo_data.firstName']))
+    ),
+    axis=1
+)
 
+df['name_concat_match'] = df.progress_apply(
+    lambda row: enhanced_match(remove_title(str(row['excel_data.Full Name'])), remove_title(str(row['mongo_data.firstName']))),
+    axis=1
+)
 
 #df['name_comparison_result for city'] = df.apply(lambda row: compare_names(str(row['city']).lower(), str(row['Client City']).lower(), last_name), axis=1)
 
 # Save the updated DataFrame to a new Excel file
-df.to_csv(r"C:\Users\Desk0012\Downloads\alkem_name_spec_150k_qc_unmatched_wala.csv", index=False)
+df.to_csv(r"C:\Users\Desk0012\Downloads\fsdfgsd.csv", index=False)
